@@ -1,0 +1,35 @@
+# Huvudkonfiguration för tradeboten.
+# API-nycklar läggs i .env (se .env.example), aldrig här.
+
+exchange:
+  id: binance          # vilket ccxt-exchange som används
+  testnet: true        # true = exchangens sandbox/testnet i live-läge
+
+market:
+  symbols:
+    - BTC/USDT
+    - ETH/USDT
+  timeframe: 1h        # candle-upplösning: 1m, 5m, 15m, 1h, 4h, 1d ...
+  candle_limit: 300    # antal candles som hämtas per analys
+
+strategy:
+  ema_fast: 12
+  ema_slow: 26
+  rsi_period: 14
+  rsi_overbought: 70   # köp inte om RSI är över denna nivå
+  rsi_oversold: 30
+  atr_period: 14
+  atr_stop_mult: 2.0   # stop loss = entry - 2.0 * ATR
+  atr_take_mult: 3.0   # take profit = entry + 3.0 * ATR
+
+risk:
+  start_equity: 10000        # startkapital i paper-läge (quote-valuta, t.ex. USDT)
+  risk_per_trade_pct: 1.0    # max % av kapitalet som riskeras per trade
+  max_positions: 2           # max antal samtidiga positioner
+  max_daily_loss_pct: 5.0    # stoppa handeln för dagen vid denna förlust
+  min_order_quote: 10        # minsta ordervärde i quote-valuta
+
+bot:
+  poll_seconds: 60           # hur ofta boten kollar marknaden
+  state_file: state/portfolio.json
+  log_file: tradebot.log

@@ -2,25 +2,39 @@
 # API-nycklar läggs i .env (se .env.example), aldrig här.
 
 exchange:
-  id: binance          # vilket ccxt-exchange som används: binance, bybit, kraken ...
+  id: bybit            # vilket ccxt-exchange som används: bybit, binance, kraken ...
   testnet: true        # true = exchangens sandbox/testnet i live-läge
 
 market:
   symbols:
     - BTC/USDT
     - ETH/USDT
-  timeframe: 1h        # candle-upplösning: 1m, 5m, 15m, 1h, 4h, 1d ...
+  timeframe: 4h        # candle-upplösning: 1m, 5m, 15m, 1h, 4h, 1d ...
   candle_limit: 300    # antal candles som hämtas per analys
 
+trading:
+  mode: spot           # "spot" = köp/sälj utan hävstång, "futures" = perpetuals
+  strategy: ema_cross  # ema_cross | donchian | rsi_meanrev
+  leverage: 2          # endast futures; håll LÅGT (2-3). Max 10. Se docs/STRATEGIER.md
+  allow_shorts: true   # endast futures: tillåt korta positioner
+
 strategy:
+  # ema_cross (trendföljning)
   ema_fast: 12
   ema_slow: 26
   rsi_period: 14
-  rsi_overbought: 70   # köp inte om RSI är över denna nivå
+  rsi_overbought: 70
   rsi_oversold: 30
+  # donchian (breakout)
+  donchian_entry: 20   # entry: stängning utanför högsta/lägsta N candles
+  donchian_exit: 10    # exit: stängning utanför motsatt N-kanal
+  # rsi_meanrev (mean reversion)
+  meanrev_trend_ema: 200
+  meanrev_exit_rsi: 50
+  # gemensamt: ATR-baserade stop/take-nivåer
   atr_period: 14
-  atr_stop_mult: 2.0   # stop loss = entry - 2.0 * ATR
-  atr_take_mult: 3.0   # take profit = entry + 3.0 * ATR
+  atr_stop_mult: 2.0   # stop loss = entry -/+ 2.0 * ATR
+  atr_take_mult: 3.0   # take profit = entry +/- 3.0 * ATR
 
 risk:
   start_equity: 10000        # startkapital i paper-läge (quote-valuta, t.ex. USDT)

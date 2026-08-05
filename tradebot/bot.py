@@ -1,7 +1,8 @@
 """Huvudloopen: hämtar data, utvärderar strategin och lägger ordrar.
 
 Samma kod driver paper- och live-läge — skillnaden är bara om ordrarna
-skickas till exchangen eller simuleras mot livepriser.
+skickas till exchangen eller simuleras mot livepriser. I futures-läge
+kan boten gå både lång och kort, med konfigurerad hävstång.
 """
 
 import logging
@@ -11,7 +12,7 @@ from .config import Config
 from .exchange import Exchange
 from .portfolio import Portfolio
 from .risk import RiskManager
-from .strategy import EmaRsiStrategy
+from .strategy import get_strategy
 
 log = logging.getLogger("tradebot.bot")
 
@@ -20,8 +21,10 @@ class TradeBot:
     def __init__(self, cfg: Config, live: bool = False):
         self.cfg = cfg
         self.live = live
-        self.exchange = Exchange(cfg.exchange, live=live)
-        self.strategy = EmaRsiStrategy(cfg.strategy)
+        self.futures = cfg.trading.mode == "futures"
+        self.leverage = cfg.trading.leverage if self.futures else 1.0
+        self.exchange = Exchange(cfg.exchange, live=live, futures=self.futures)
+        self.strategy = get_strategy(cfg.trading.strategy, cfg.strategy)
         self.risk = RiskManager(cfg.risk)
         self.portfolio = Portfolio.load(cfg.bot.state_file, cfg.risk.start_equity)
 
@@ -40,13 +43,14 @@ class TradeBot:
             prices[symbol] = price
 
             self._check_exits(symbol, price)
-            self._check_entry(symbol, df, prices)
+            self._handle_signal(symbol, df, prices)
 
         total = self.portfolio.total_value(prices)
+        pos_desc = [f"{s} ({p.side} {p.leverage:.0f}x)"
+                    for s, p in self.portfolio.positions.items()]
         log.info(
-            "Portföljvärde: %.2f | kassa: %.2f | positioner: %s | dagens PnL: %.2f",
-            total, self.portfolio.equity,
-            list(self.portfolio.positions) or "inga", self.portfolio.daily_pnl,
+            "Portföljvärde: %.2f | fri kassa: %.2f | positioner: %s | dagens PnL: %.2f",
+            total, self.portfolio.equity, pos_desc or "inga", self.portfolio.daily_pnl,
         )
         self.portfolio.save(self.cfg.bot.state_file)
 
@@ -56,50 +60,84 @@ class TradeBot:
             return
         reason = self.risk.exit_reason(pos, price)
         if reason:
-            self._sell(symbol, price, reason)
+            if reason == "liquidation":
+                log.warning("%s: LIKVIDATION vid %.2f — hela marginalen förlorad", symbol, price)
+            self._close(symbol, price, reason)
 
-    def _check_entry(self, symbol: str, df, prices: dict) -> None:
-        signal = self.strategy.evaluate(df)
-        has_pos = symbol in self.portfolio.positions
+    def _handle_signal(self, symbol: str, df, prices: dict) -> None:
+        pos = self.portfolio.positions.get(symbol)
+        side = pos.side if pos else ""
+        signal = self.strategy.evaluate(df, side=side)
 
-        if signal.action == "sell" and has_pos:
-            self._sell(symbol, signal.price, signal.reason)
-        elif signal.action == "buy" and not has_pos:
-            if not self.risk.can_open(self.portfolio, prices):
-                log.info("%s: köpsignal men risklagret säger nej (%s)", symbol, signal.reason)
-                return
-            amount = self.risk.position_size(
-                self.portfolio, prices, signal.price, signal.stop_loss
-            )
-            if amount <= 0:
-                log.info("%s: köpsignal men för liten position, hoppar över", symbol)
-                return
-            amount = self.exchange.normalize_amount(symbol, amount)
+        if signal.action == "hold":
+            return
+
+        if signal.action == "close":
+            if pos:
+                self._close(symbol, signal.price, signal.reason)
+            return
+
+        # signal.action är "long" eller "short"
+        want = signal.action
+        if want == "short" and not (self.futures and self.cfg.trading.allow_shorts):
+            # utan shorts tolkas kort signal som "lämna marknaden"
+            if pos and pos.side == "long":
+                self._close(symbol, signal.price, signal.reason)
+            return
+
+        if pos:
+            if pos.side == want:
+                return  # redan rätt håll
+            self._close(symbol, signal.price, f"vänder till {want}")
+
+        if not self.risk.can_open(self.portfolio, prices):
+            log.info("%s: %s-signal men risklagret säger nej (%s)",
+                     symbol, want, signal.reason)
+            return
+        amount = self.risk.position_size(
+            self.portfolio, prices, signal.price, signal.stop_loss, self.leverage
+        )
+        if amount <= 0:
+            log.info("%s: %s-signal men för liten position, hoppar över", symbol, want)
+            return
+        amount = self.exchange.normalize_amount(symbol, amount)
+        if want == "long":
             self.exchange.market_buy(symbol, amount)
-            self.portfolio.open_position(
-                symbol, amount, signal.price, signal.stop_loss, signal.take_profit
-            )
-            log.info(
-                "KÖP %s: %.8f @ %.2f (stop %.2f, take %.2f) — %s",
-                symbol, amount, signal.price, signal.stop_loss,
-                signal.take_profit, signal.reason,
-            )
+        else:
+            self.exchange.market_sell(symbol, amount)
+        self.portfolio.open_position(
+            symbol, amount, signal.price, signal.stop_loss, signal.take_profit,
+            side=want, leverage=self.leverage,
+        )
+        log.info(
+            "ÖPPNA %s %s: %.8f @ %.2f, %sx (stop %.2f, take %.2f) — %s",
+            want.upper(), symbol, amount, signal.price, int(self.leverage),
+            signal.stop_loss, signal.take_profit, signal.reason,
+        )
 
-    def _sell(self, symbol: str, price: float, reason: str) -> None:
+    def _close(self, symbol: str, price: float, reason: str) -> None:
         pos = self.portfolio.positions[symbol]
-        self.exchange.market_sell(symbol, pos.amount)
+        if pos.side == "long":
+            self.exchange.market_sell(symbol, pos.amount, reduce_only=True)
+        else:
+            self.exchange.market_buy(symbol, pos.amount, reduce_only=True)
         pnl = self.portfolio.close_position(symbol, price, reason)
-        log.info("SÄLJ %s: %.8f @ %.2f | PnL %.2f | %s", symbol, pos.amount, price, pnl, reason)
+        log.info("STÄNG %s %s: %.8f @ %.2f | PnL %.2f | %s",
+                 pos.side.upper(), symbol, pos.amount, price, pnl, reason)
 
     # -- körning ----------------------------------------------------------
     def run(self) -> None:
         mode = "LIVE" if self.live else "PAPER"
         log.info(
-            "Startar tradebot i %s-läge | symboler: %s | timeframe: %s",
-            mode, self.cfg.market.symbols, self.cfg.market.timeframe,
+            "Startar tradebot i %s-läge | %s | strategi: %s | symboler: %s | timeframe: %s%s",
+            mode, self.cfg.trading.mode, self.strategy.name,
+            self.cfg.market.symbols, self.cfg.market.timeframe,
+            f" | hävstång {int(self.leverage)}x" if self.futures else "",
         )
         if self.live:
             log.warning("LIVE-läge: riktiga ordrar kommer att läggas!")
+            for symbol in self.cfg.market.symbols:
+                self.exchange.set_leverage(symbol, self.leverage)
         while True:
             try:
                 self.step()

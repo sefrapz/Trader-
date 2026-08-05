@@ -24,11 +24,14 @@ def setup_logging(log_file: str) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Krypto-tradebot (EMA/RSI + ATR-risk)")
+    parser = argparse.ArgumentParser(description="Krypto-tradebot (trend/breakout/meanrev)")
     parser.add_argument("mode", choices=["backtest", "paper", "live"])
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--candles", type=int, default=1000,
-                        help="antal candles i backtest")
+                        help="antal candles i backtest (pagineras automatiskt)")
+    parser.add_argument("--strategy", default=None,
+                        help="strategi i backtest: ema_cross, donchian, rsi_meanrev "
+                             "eller 'all' för att jämföra samtliga")
     parser.add_argument("--i-understand-the-risk", action="store_true",
                         help="krävs för live-läge")
     args = parser.parse_args()
@@ -38,9 +41,13 @@ def main() -> int:
     log = logging.getLogger("tradebot")
 
     if args.mode == "backtest":
-        results = Backtester(cfg).run(candle_limit=args.candles)
-        print("\n=== Backtestresultat ===")
-        for res in results:
+        results = Backtester(cfg).run(candle_limit=args.candles,
+                                      strategy_name=args.strategy)
+        print("\n=== Backtestresultat "
+              f"({cfg.trading.mode}"
+              f"{', ' + str(int(cfg.trading.leverage)) + 'x' if cfg.trading.mode == 'futures' else ''}"
+              ") ===")
+        for res in sorted(results, key=lambda r: -r.return_pct):
             print(res.summary())
         print(
             "\nOBS: historisk avkastning säger inget säkert om framtiden. "

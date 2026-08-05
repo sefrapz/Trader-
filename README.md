@@ -49,7 +49,25 @@ python main.py paper
 
 Portföljen sparas i `state/portfolio.json` och överlever omstarter.
 
-### 3. Live trading
+### 3. Analysera dina trades
+
+Varje avslutad trade journalförs med marknadskontext (ADX, ATR, RSI m.m.
+vid entry) — backtest skriver till `state/journal_backtest.jsonl` och
+paper/live till `state/journal.jsonl`. I paper/live uppdateras dessutom
+`state/analysis.txt` automatiskt efter varje stängd trade.
+
+```bash
+python main.py analyze                    # analysera allt
+python main.py analyze --source backtest  # bara senaste backtesten
+python main.py analyze --source paper     # bara paper/live-trades
+```
+
+Rapporten visar var pengarna tjänas och förloras: per strategi, sida
+(long/short), exit-orsak, trendstyrka, volatilitet och veckodag. Grupper
+med färre än 10 trades markeras — dra inga slutsatser av dem, och
+behandla mönster som hypoteser att A/B-testa i backtest, inte som regler.
+
+### 4. Live trading
 
 1. Kopiera `.env.example` till `.env` och fyll i dina API-nycklar
    (skapa nycklar **utan uttagsrättigheter** på exchangen).

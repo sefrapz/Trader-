@@ -62,6 +62,24 @@ class BaseStrategy:
             return price - stop_d, price + take_d
         return price + stop_d, price - take_d
 
+    _OHLCV = {"timestamp", "open", "high", "low", "close", "volume"}
+
+    def entry_context(self, df: pd.DataFrame) -> dict:
+        """Indikatorvärden på senaste candlen — sparas i journalen vid entry."""
+        ind = self.add_indicators(df)
+        row = ind.iloc[-1]
+        out = {}
+        for col in ind.columns:
+            if col in self._OHLCV:
+                continue
+            try:
+                val = float(row[col])
+            except (TypeError, ValueError):
+                continue
+            if pd.notna(val):
+                out[col] = round(val, 6)
+        return out
+
     def _trending(self, row) -> bool:
         """Regimfilter: entries tillåts bara när ADX visar mätbar trendstyrka."""
         if self.cfg.adx_min <= 0:

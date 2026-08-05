@@ -24,6 +24,7 @@ class Position:
     leverage: float = 1.0
     margin: float = 0.0    # låst kapital i quote-valuta
     opened_at: str = ""
+    context: dict = field(default_factory=dict)  # indikatorvärden vid entry
 
     def unrealized_pnl(self, price: float) -> float:
         if self.side == "long":
@@ -58,6 +59,7 @@ class Portfolio:
                 p.setdefault("side", "long")
                 p.setdefault("leverage", 1.0)
                 p.setdefault("margin", p["amount"] * p["entry_price"])
+                p.setdefault("context", {})
                 pf.positions[sym] = Position(**p)
             return pf
         return cls(equity=start_equity)
@@ -84,13 +86,15 @@ class Portfolio:
     # -- handel -----------------------------------------------------------
     def open_position(self, symbol: str, amount: float, price: float,
                       stop_loss: float, take_profit: float,
-                      side: str = "long", leverage: float = 1.0) -> Position:
+                      side: str = "long", leverage: float = 1.0,
+                      context: dict = None) -> Position:
         margin = amount * price / leverage
         pos = Position(
             symbol=symbol, side=side, amount=amount, entry_price=price,
             stop_loss=stop_loss, take_profit=take_profit,
             leverage=leverage, margin=margin,
             opened_at=datetime.now(timezone.utc).isoformat(),
+            context=context or {},
         )
         self.positions[symbol] = pos
         self.equity -= margin

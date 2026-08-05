@@ -248,6 +248,56 @@ def test_backtest_futures_with_leverage_and_shorts():
     assert shorts, "futures-läget ska ha handlat kort någon gång"
 
 
+def test_backtest_writes_journal_with_context():
+    cfg = make_config(mode="futures", leverage=2.0)
+    bt = Backtester(cfg)
+    strat = EmaCrossStrategy(cfg.strategy)
+    records = []
+    res = bt.run_symbol(make_ohlcv(sawtooth()), "TEST/USDT", strat,
+                        journal_records=records)
+    assert len(records) == res.trades
+    rec = records[0]
+    assert rec["mode"] == "backtest"
+    assert rec["strategy"] == "ema_cross"
+    assert rec["side"] in ("long", "short")
+    assert "rsi" in rec["context"] and "atr" in rec["context"]
+    assert rec["pnl_pct_of_margin"] != 0
+
+
+def test_journal_roundtrip_and_analysis(tmp_path):
+    from tradebot.journal import Journal, make_record
+    from tradebot.analyze import load_records, build_report
+
+    path = str(tmp_path / "journal.jsonl")
+    j = Journal(path)
+    for i in range(12):
+        j.record(make_record(
+            mode="paper", strategy="donchian", timeframe="1d", symbol="BTC/USDT",
+            side="long" if i % 2 == 0 else "short", leverage=2.0, amount=0.1,
+            entry_price=100.0, exit_price=110.0 if i % 3 else 95.0,
+            pnl=1.0 if i % 3 else -0.5, margin=5.0,
+            reason="take_profit" if i % 3 else "stop_loss",
+            opened_at="2026-01-01T00:00:00+00:00",
+            closed_at="2026-01-02T00:00:00+00:00",
+            context={"adx": 25.0 + i, "atr": 3.0, "rsi": 55.0},
+        ))
+
+    df = load_records([path])
+    assert len(df) == 12
+    assert "ctx_adx" in df.columns
+    report = build_report(df)
+    assert "TRADE-ANALYS" in report
+    assert "Per sida" in report
+    assert "Per exit-orsak" in report
+    assert "Per trendstyrka" in report
+
+
+def test_analysis_empty_journal():
+    from tradebot.analyze import build_report, load_records
+    report = build_report(load_records(["/nonexistent/journal.jsonl"]))
+    assert "tom" in report.lower()
+
+
 def test_backtest_all_strategies_run():
     cfg = make_config(mode="futures", leverage=2.0)
     bt = Backtester(cfg)

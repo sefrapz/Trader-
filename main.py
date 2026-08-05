@@ -25,7 +25,9 @@ def setup_logging(log_file: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Krypto-tradebot (trend/breakout/meanrev)")
-    parser.add_argument("mode", choices=["backtest", "paper", "live"])
+    parser.add_argument("mode", choices=["backtest", "paper", "live", "analyze"])
+    parser.add_argument("--source", choices=["paper", "backtest", "all"], default="all",
+                        help="analyze: vilka journaler som analyseras (default: alla)")
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--candles", type=int, default=1000,
                         help="antal candles i backtest (pagineras automatiskt)")
@@ -46,6 +48,18 @@ def main() -> int:
                       trading_mode=args.trading_mode if args.mode == "backtest" else None)
     setup_logging(cfg.bot.log_file)
     log = logging.getLogger("tradebot")
+
+    if args.mode == "analyze":
+        from tradebot.analyze import run_analysis
+        paths = []
+        if args.source in ("paper", "all"):
+            paths.append(cfg.bot.journal_file)
+        if args.source in ("backtest", "all"):
+            paths.append(cfg.bot.backtest_journal_file)
+        report = run_analysis(paths, save_to=cfg.bot.analysis_file)
+        print(report)
+        print(f"\nRapporten är även sparad i {cfg.bot.analysis_file}")
+        return 0
 
     if args.mode == "backtest":
         if args.timeframe:

@@ -14,6 +14,7 @@ import pandas as pd
 
 from .config import Config
 from .exchange import Exchange
+from .journal import Journal, make_record
 from .risk import LIQ_BUFFER
 from .strategy import STRATEGIES, BaseStrategy, get_strategy
 
@@ -64,20 +65,23 @@ class Backtester:
         return FUTURES_FEE_PCT if self.futures else SPOT_FEE_PCT
 
     def run_symbol(self, df: pd.DataFrame, symbol: str, strategy: BaseStrategy,
-                   fee_pct: float = None) -> BacktestResult:
+                   fee_pct: float = None, journal_records: list = None) -> BacktestResult:
         fee = (self._default_fee() if fee_pct is None else fee_pct) / 100.0
         lev = self.leverage
         equity = self.cfg.risk.start_equity
         result = BacktestResult(symbol, strategy.name, equity, equity)
 
         ind = strategy.add_indicators(df)
+        ctx_cols = [c for c in ind.columns
+                    if c not in ("timestamp", "open", "high", "low", "close", "volume")]
         peak = equity
 
         side = ""          # "", "long" eller "short"
         amount = entry = stop = take = margin = 0.0
+        entry_ts, entry_ctx = None, {}
 
-        def open_pos(want: str, price: float, sl: float, tp: float):
-            nonlocal side, amount, entry, stop, take, margin, equity
+        def open_pos(want: str, price: float, sl: float, tp: float, row=None, ts=None):
+            nonlocal side, amount, entry, stop, take, margin, equity, entry_ts, entry_ctx
             stop_dist = abs(price - sl)
             if stop_dist <= 0:
                 return
@@ -91,6 +95,13 @@ class Backtester:
                 return
             equity -= m + amt * price * fee
             side, amount, entry, stop, take, margin = want, amt, price, sl, tp, m
+            entry_ts = ts
+            entry_ctx = {}
+            if row is not None:
+                for col in ctx_cols:
+                    val = row[col]
+                    if pd.notna(val):
+                        entry_ctx[col] = round(float(val), 6)
 
         def close_pos(price: float, reason: str, ts):
             nonlocal side, amount, margin, equity
@@ -106,6 +117,16 @@ class Backtester:
                 {"time": str(ts), "action": f"close_{side}", "price": price,
                  "pnl": pnl, "reason": reason}
             )
+            if journal_records is not None:
+                journal_records.append(make_record(
+                    mode="backtest", strategy=strategy.name,
+                    timeframe=self.cfg.market.timeframe,
+                    symbol=symbol, side=side, leverage=lev,
+                    amount=amount, entry_price=entry, exit_price=price,
+                    pnl=pnl, margin=margin, reason=reason,
+                    opened_at=str(entry_ts), closed_at=str(ts),
+                    context=entry_ctx,
+                ))
             side, amount, margin = "", 0.0, 0.0
 
         liq_move = LIQ_BUFFER / lev
@@ -145,7 +166,7 @@ class Backtester:
                 elif side != want:
                     if side:
                         close_pos(price, f"vänder till {want}", ts)
-                    open_pos(want, price, sig.stop_loss, sig.take_profit)
+                    open_pos(want, price, sig.stop_loss, sig.take_profit, row=cur, ts=ts)
                     if side:
                         result.trade_log.append(
                             {"time": str(ts), "action": f"open_{side}", "price": price}
@@ -172,14 +193,20 @@ class Backtester:
         names = (list(STRATEGIES) if strategy_name == "all"
                  else [strategy_name or self.cfg.trading.strategy])
         results = []
+        journal_records = []
         for symbol in self.cfg.market.symbols:
             df = exchange.fetch_ohlcv(symbol, self.cfg.market.timeframe, candle_limit)
             benchmark = (float(df["close"].iloc[-1]) / float(df["close"].iloc[0]) - 1) * 100.0
             log.info("%s: %d candles (%s – %s) | köp & behåll: %+.2f%%", symbol, len(df),
                      df["timestamp"].iloc[0], df["timestamp"].iloc[-1], benchmark)
             for name in names:
-                res = self.run_symbol(df, symbol, get_strategy(name, self.cfg.strategy))
+                res = self.run_symbol(df, symbol, get_strategy(name, self.cfg.strategy),
+                                      journal_records=journal_records)
                 res.benchmark_pct = benchmark
                 log.info(res.summary())
                 results.append(res)
+        # journalen skrivs om per körning — analyze läser alltid senaste backtesten
+        Journal(self.cfg.bot.backtest_journal_file).write_all(journal_records)
+        log.info("%d trades journalförda i %s — analysera med: python main.py analyze",
+                 len(journal_records), self.cfg.bot.backtest_journal_file)
         return results

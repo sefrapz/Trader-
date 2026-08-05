@@ -64,6 +64,9 @@ class BotConfig:
     poll_seconds: int = 60
     state_file: str = "state/portfolio.json"
     log_file: str = "tradebot.log"
+    journal_file: str = "state/journal.jsonl"
+    backtest_journal_file: str = "state/journal_backtest.jsonl"
+    analysis_file: str = "state/analysis.txt"
 
 
 @dataclass

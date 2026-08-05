@@ -8,8 +8,12 @@ kan boten gå både lång och kort, med konfigurerad hävstång.
 import logging
 import time
 
+from datetime import datetime, timezone
+
+from .analyze import run_analysis
 from .config import Config
 from .exchange import Exchange
+from .journal import Journal, make_record
 from .portfolio import Portfolio
 from .risk import RiskManager
 from .strategy import get_strategy
@@ -27,6 +31,7 @@ class TradeBot:
         self.strategy = get_strategy(cfg.trading.strategy, cfg.strategy)
         self.risk = RiskManager(cfg.risk)
         self.portfolio = Portfolio.load(cfg.bot.state_file, cfg.risk.start_equity)
+        self.journal = Journal(cfg.bot.journal_file)
 
     # -- en analysrunda ---------------------------------------------------
     def step(self) -> None:
@@ -112,6 +117,7 @@ class TradeBot:
         self.portfolio.open_position(
             symbol, amount, signal.price, signal.stop_loss, signal.take_profit,
             side=want, leverage=self.leverage,
+            context=self.strategy.entry_context(df),
         )
         log.info(
             "ÖPPNA %s %s: %.8f @ %.2f, %sx (stop %.2f, take %.2f) — %s",
@@ -128,6 +134,27 @@ class TradeBot:
         pnl = self.portfolio.close_position(symbol, price, reason)
         log.info("STÄNG %s %s: %.8f @ %.2f | PnL %.2f | %s",
                  pos.side.upper(), symbol, pos.amount, price, pnl, reason)
+        self.journal.record(make_record(
+            mode="live" if self.live else "paper",
+            strategy=self.strategy.name,
+            timeframe=self.cfg.market.timeframe,
+            symbol=symbol, side=pos.side, leverage=pos.leverage,
+            amount=pos.amount, entry_price=pos.entry_price, exit_price=price,
+            pnl=pnl, margin=pos.margin, reason=reason,
+            opened_at=pos.opened_at,
+            closed_at=datetime.now(timezone.utc).isoformat(),
+            context=pos.context,
+        ))
+        self._refresh_analysis()
+
+    def _refresh_analysis(self) -> None:
+        """Automatisk analys: uppdateras efter varje stängd trade."""
+        try:
+            run_analysis([self.cfg.bot.journal_file],
+                         save_to=self.cfg.bot.analysis_file)
+            log.info("Analys uppdaterad: %s", self.cfg.bot.analysis_file)
+        except Exception:
+            log.exception("Kunde inte uppdatera analysen")
 
     # -- körning ----------------------------------------------------------
     def run(self) -> None:

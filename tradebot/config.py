@@ -32,6 +32,8 @@ class StrategyConfig:
     atr_period: int = 14
     atr_stop_mult: float = 2.0
     atr_take_mult: float = 3.0
+    adx_period: int = 14
+    adx_min: float = 20.0   # regimfilter för trendstrategier; 0 = avstängt
     donchian_entry: int = 20
     donchian_exit: int = 10
     meanrev_trend_ema: int = 200

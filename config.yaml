@@ -35,6 +35,10 @@ strategy:
   atr_period: 14
   atr_stop_mult: 2.0   # stop loss = entry -/+ 2.0 * ATR
   atr_take_mult: 3.0   # take profit = entry +/- 3.0 * ATR
+  # regimfilter: trendstrategierna (ema_cross, donchian) öppnar bara
+  # positioner när ADX >= adx_min. 0 stänger av filtret.
+  adx_period: 14
+  adx_min: 20
 
 risk:
   start_equity: 10000        # startkapital i paper-läge (quote-valuta, t.ex. USDT)

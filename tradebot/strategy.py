@@ -20,7 +20,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from .config import StrategyConfig
-from .indicators import atr, ema, rsi
+from .indicators import adx, atr, ema, rsi
 
 
 @dataclass
@@ -62,6 +62,12 @@ class BaseStrategy:
             return price - stop_d, price + take_d
         return price + stop_d, price - take_d
 
+    def _trending(self, row) -> bool:
+        """Regimfilter: entries tillåts bara när ADX visar mätbar trendstyrka."""
+        if self.cfg.adx_min <= 0:
+            return True
+        return float(row["adx"]) >= self.cfg.adx_min
+
 
 class EmaCrossStrategy(BaseStrategy):
     """Trendföljning: EMA-korsning med RSI-filter. Long vid korsning upp,
@@ -70,7 +76,8 @@ class EmaCrossStrategy(BaseStrategy):
     name = "ema_cross"
 
     def min_candles(self) -> int:
-        return max(self.cfg.ema_slow, self.cfg.rsi_period, self.cfg.atr_period) + 2
+        return max(self.cfg.ema_slow, self.cfg.rsi_period, self.cfg.atr_period,
+                   2 * self.cfg.adx_period) + 2
 
     def add_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         out = df.copy()
@@ -78,6 +85,7 @@ class EmaCrossStrategy(BaseStrategy):
         out["ema_slow"] = ema(out["close"], self.cfg.ema_slow)
         out["rsi"] = rsi(out["close"], self.cfg.rsi_period)
         out["atr"] = atr(out, self.cfg.atr_period)
+        out["adx"] = adx(out, self.cfg.adx_period)
         return out
 
     def signal_row(self, ind: pd.DataFrame, i: int, side: str = "") -> Signal:
@@ -88,17 +96,24 @@ class EmaCrossStrategy(BaseStrategy):
         crossed_down = prev["ema_fast"] >= prev["ema_slow"] and cur["ema_fast"] < cur["ema_slow"]
 
         if crossed_up:
+            if not self._trending(cur):
+                # korsning i trendlös marknad: lämna ev. short men öppna inget nytt
+                return Signal("close", price,
+                              reason=f"korsning upp men svag trend (ADX {cur['adx']:.0f})")
             if cur["rsi"] < self.cfg.rsi_overbought:
                 stop, take = self._levels(price, float(cur["atr"]), "long")
                 return Signal("long", price, stop, take,
-                              f"EMA-korsning upp, RSI {cur['rsi']:.1f}")
+                              f"EMA-korsning upp, RSI {cur['rsi']:.1f}, ADX {cur['adx']:.0f}")
             return Signal("close", price, reason="EMA-korsning upp men överköpt RSI")
 
         if crossed_down:
+            if not self._trending(cur):
+                return Signal("close", price,
+                              reason=f"korsning ner men svag trend (ADX {cur['adx']:.0f})")
             if cur["rsi"] > self.cfg.rsi_oversold:
                 stop, take = self._levels(price, float(cur["atr"]), "short")
                 return Signal("short", price, stop, take,
-                              f"EMA-korsning ner, RSI {cur['rsi']:.1f}")
+                              f"EMA-korsning ner, RSI {cur['rsi']:.1f}, ADX {cur['adx']:.0f}")
             return Signal("close", price, reason="EMA-korsning ner men översåld RSI")
 
         return Signal("hold", price)
@@ -112,7 +127,8 @@ class DonchianStrategy(BaseStrategy):
     name = "donchian"
 
     def min_candles(self) -> int:
-        return max(self.cfg.donchian_entry, self.cfg.donchian_exit, self.cfg.atr_period) + 2
+        return max(self.cfg.donchian_entry, self.cfg.donchian_exit,
+                   self.cfg.atr_period, 2 * self.cfg.adx_period) + 2
 
     def add_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         out = df.copy()
@@ -123,6 +139,7 @@ class DonchianStrategy(BaseStrategy):
         out["dx_high"] = out["high"].rolling(n_out).max().shift(1)
         out["dx_low"] = out["low"].rolling(n_out).min().shift(1)
         out["atr"] = atr(out, self.cfg.atr_period)
+        out["adx"] = adx(out, self.cfg.adx_period)
         return out
 
     def signal_row(self, ind: pd.DataFrame, i: int, side: str = "") -> Signal:
@@ -134,14 +151,16 @@ class DonchianStrategy(BaseStrategy):
         if side == "short" and price > float(cur["dx_high"]):
             return Signal("close", price, reason="stängde över exitkanalen")
 
-        if price > float(cur["dc_high"]):
+        if price > float(cur["dc_high"]) and self._trending(cur):
             stop, take = self._levels(price, float(cur["atr"]), "long")
             return Signal("long", price, stop, take,
-                          f"breakout över {self.cfg.donchian_entry}-kanalen")
-        if price < float(cur["dc_low"]):
+                          f"breakout över {self.cfg.donchian_entry}-kanalen, "
+                          f"ADX {cur['adx']:.0f}")
+        if price < float(cur["dc_low"]) and self._trending(cur):
             stop, take = self._levels(price, float(cur["atr"]), "short")
             return Signal("short", price, stop, take,
-                          f"breakout under {self.cfg.donchian_entry}-kanalen")
+                          f"breakout under {self.cfg.donchian_entry}-kanalen, "
+                          f"ADX {cur['adx']:.0f}")
 
         return Signal("hold", price)
 

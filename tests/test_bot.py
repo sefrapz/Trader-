@@ -102,6 +102,35 @@ def test_meanrev_long_on_oversold_dip_in_uptrend():
     assert sig.action == "long"
 
 
+def test_adx_separates_trend_from_noise():
+    from tradebot.indicators import adx
+    rng = np.random.default_rng(7)
+    trend = np.concatenate([np.linspace(104, 100, 50), np.linspace(100, 104, 40)])
+    noise = 100 + rng.normal(0, 0.3, 90)
+    adx_trend = float(adx(make_ohlcv(trend), 14).iloc[-1])
+    adx_noise = float(adx(make_ohlcv(noise), 14).iloc[-1])
+    assert adx_trend > 25
+    assert adx_noise < 15
+    assert adx_trend > adx_noise
+
+
+def test_adx_filter_blocks_entries_in_choppy_market():
+    # slumpbrus utan trend: korsningar sker, men filtret ska stoppa entries
+    rng = np.random.default_rng(11)
+    noise = 100 + rng.normal(0, 0.3, 200)
+    df = make_ohlcv(noise)
+
+    filtered = EmaCrossStrategy(StrategyConfig(adx_min=20.0))
+    unfiltered = EmaCrossStrategy(StrategyConfig(adx_min=0.0))
+
+    def entries(strat):
+        return sum(strat.evaluate(df.iloc[:i]).action in ("long", "short")
+                   for i in range(strat.min_candles(), len(df) + 1))
+
+    assert entries(unfiltered) > 0, "utan filter ska bruset ge entries"
+    assert entries(filtered) == 0, "med filter ska trendlöst brus ge noll entries"
+
+
 def test_get_strategy_rejects_unknown_name():
     with pytest.raises(ValueError):
         get_strategy("hemlig_vinnarstrategi", StrategyConfig())

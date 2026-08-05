@@ -18,6 +18,24 @@ fönster blir inte regler.
 - **Bieffekt:** ETH handlas nästan inte alls med filtret (dess volatilitet
   ligger oftast över tröskeln) — självreglerande, ETH behålls som symbol.
 
+## 2026-08-05 — Daytrading-strategin `intraday_momentum` UNDERKÄND i backtest
+
+- **Hypotes:** volymbekräftat breakout + återtest i VWAP/strukturriktning
+  på 5m (klassisk daytrading-setup) kan bära sina kostnader.
+- **Backtest, 2 månader 5m futures 2x:** BTC −48,55 % (314 trades),
+  ETH −28,29 % (254 trades). Köp & behåll samma period: +6,8 % / +22,9 %.
+- **Rotorsak (strukturell, inte parametrisk):** avgiften är 0,11 % av
+  positionsvärdet per rundresa. Med 5m-stoppar på ~0,2–0,3 % av priset och
+  riskbaserad storlek blir avgiften 0,4–0,55R per trade — då krävs ~50 %
+  träffsäkerhet med 2R-mål bara för nollresultat; setupen träffar 32–36 %.
+  Jämför 1d-swing: ~0,016R i avgift. Detta förklarar hela vår uppmätta
+  trappa 5m→1h→4h→1d.
+- **Beslut:** ingen intradagshandel med marknadsordrar. Strategin och
+  profilen (`config.daytrade.yaml`) behålls i repot som dokumenterat
+  experiment. Enda vägar som ändrar matematiken: maker-/limitordrar
+  (kräver ordermotor som motorn inte simulerar ärligt idag) eller så breda
+  stoppar att det inte längre är daytrading.
+
 ## 2026-08-05 — ADX-regimfilter AV (`adx_min: 0`)
 
 - **Hypotes:** trendstrategier bör bara handla när ADX ≥ 20.

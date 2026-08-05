@@ -36,11 +36,14 @@ def main() -> int:
                         help="överstyr konfigens timeframe i backtest, t.ex. 1h, 4h, 1d")
     parser.add_argument("--adx-min", type=float, default=None,
                         help="överstyr regimfiltret i backtest (0 = av), för A/B-test")
+    parser.add_argument("--trading-mode", choices=["spot", "futures"], default=None,
+                        help="överstyr konfigens trading.mode i backtest")
     parser.add_argument("--i-understand-the-risk", action="store_true",
                         help="krävs för live-läge")
     args = parser.parse_args()
 
-    cfg = load_config(args.config)
+    cfg = load_config(args.config,
+                      trading_mode=args.trading_mode if args.mode == "backtest" else None)
     setup_logging(cfg.bot.log_file)
     log = logging.getLogger("tradebot")
 

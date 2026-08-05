@@ -42,8 +42,12 @@ class TradeBot:
             price = float(df["close"].iloc[-1])
             prices[symbol] = price
 
+            # stop/take/likvidation reagerar på senaste pris (pågående candle) ...
             self._check_exits(symbol, price)
-            self._handle_signal(symbol, df, prices)
+            # ... men signaler beräknas bara på stängda candles, precis som i
+            # backtestet — annars flimrar signalerna intradag
+            closed = df.iloc[:-1] if len(df) > 1 else df
+            self._handle_signal(symbol, closed, prices)
 
         total = self.portfolio.total_value(prices)
         pos_desc = [f"{s} ({p.side} {p.leverage:.0f}x)"

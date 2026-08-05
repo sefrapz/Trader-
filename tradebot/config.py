@@ -81,10 +81,12 @@ def _build(cls, data: dict):
     return cls(**{k: v for k, v in (data or {}).items() if k in fields})
 
 
-def load_config(path: str = "config.yaml") -> Config:
+def load_config(path: str = "config.yaml", trading_mode: str = None) -> Config:
     load_dotenv()
     with open(path, "r", encoding="utf-8") as fh:
         raw = yaml.safe_load(fh) or {}
+    if trading_mode:
+        raw.setdefault("trading", {})["mode"] = trading_mode
 
     exchange = _build(ExchangeConfig, raw.get("exchange"))
     exchange.api_key = os.getenv("EXCHANGE_API_KEY", "")

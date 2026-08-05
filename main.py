@@ -53,6 +53,14 @@ def main() -> int:
               ") ===")
         for res in sorted(results, key=lambda r: -r.return_pct):
             print(res.summary())
+        benchmarks = {r.symbol: r.benchmark_pct for r in results}
+        print("\nKöp & behåll samma period (jämförelse):")
+        for sym, pct in benchmarks.items():
+            print(f"  {sym}: {pct:+.2f}%")
+        print(
+            "OBS: boten riskerar ~1% av kapitalet per trade — jämför "
+            "riskjusterat (drawdown), inte bara rå avkastning."
+        )
         print(
             "\nOBS: historisk avkastning säger inget säkert om framtiden. "
             "Kör paper-läget en längre period innan live."

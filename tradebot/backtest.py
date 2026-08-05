@@ -33,6 +33,7 @@ class BacktestResult:
     wins: int = 0
     liquidations: int = 0
     max_drawdown_pct: float = 0.0
+    benchmark_pct: float = 0.0   # köp & behåll samma period
     trade_log: list = field(default_factory=list)
 
     @property
@@ -173,10 +174,12 @@ class Backtester:
         results = []
         for symbol in self.cfg.market.symbols:
             df = exchange.fetch_ohlcv(symbol, self.cfg.market.timeframe, candle_limit)
-            log.info("%s: %d candles (%s – %s)", symbol, len(df),
-                     df["timestamp"].iloc[0], df["timestamp"].iloc[-1])
+            benchmark = (float(df["close"].iloc[-1]) / float(df["close"].iloc[0]) - 1) * 100.0
+            log.info("%s: %d candles (%s – %s) | köp & behåll: %+.2f%%", symbol, len(df),
+                     df["timestamp"].iloc[0], df["timestamp"].iloc[-1], benchmark)
             for name in names:
                 res = self.run_symbol(df, symbol, get_strategy(name, self.cfg.strategy))
+                res.benchmark_pct = benchmark
                 log.info(res.summary())
                 results.append(res)
         return results

@@ -14,7 +14,9 @@ market:
 
 trading:
   mode: spot           # "spot" = köp/sälj utan hävstång, "futures" = perpetuals
-  strategy: ema_cross  # ema_cross | donchian | rsi_meanrev
+  strategy: donchian   # ema_cross | donchian | rsi_meanrev
+                       # donchian är default: enda strategin med plusresultat
+                       # i 4-årsbacktest på BTC+ETH 1d (aug 2022–aug 2026)
   leverage: 2          # endast futures; håll LÅGT (2-3). Max 10. Se docs/STRATEGIER.md
   allow_shorts: true   # endast futures: tillåt korta positioner
 

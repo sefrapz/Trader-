@@ -38,9 +38,11 @@ strategy:
   atr_stop_mult: 2.0   # stop loss = entry -/+ 2.0 * ATR
   atr_take_mult: 3.0   # take profit = entry +/- 3.0 * ATR
   # regimfilter: trendstrategierna (ema_cross, donchian) öppnar bara
-  # positioner när ADX >= adx_min. 0 stänger av filtret.
+  # positioner när ADX >= adx_min. 0 = avstängt (default: A/B-test på
+  # donchian 1d 2024-2026 visade att filtret klippte bort vinnande
+  # tidiga entries — slå bara på om egna mätningar motiverar det)
   adx_period: 14
-  adx_min: 20
+  adx_min: 0
 
 risk:
   start_equity: 10000        # startkapital i paper-läge (quote-valuta, t.ex. USDT)

@@ -33,7 +33,9 @@ class StrategyConfig:
     atr_stop_mult: float = 2.0
     atr_take_mult: float = 3.0
     adx_period: int = 14
-    adx_min: float = 20.0   # regimfilter för trendstrategier; 0 = avstängt
+    adx_min: float = 0.0    # regimfilter för trendstrategier; 0 = avstängt.
+                            # A/B-test på donchian 1d 2024-2026 visade att
+                            # filtret försämrade resultatet — därav avstängt.
     donchian_entry: int = 20
     donchian_exit: int = 10
     meanrev_trend_ema: int = 200

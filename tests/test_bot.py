@@ -12,7 +12,8 @@ from tradebot.config import (
 from tradebot.portfolio import Portfolio
 from tradebot.risk import RiskManager, liquidation_price
 from tradebot.strategy import (
-    DonchianStrategy, EmaCrossStrategy, RsiMeanRevStrategy, get_strategy,
+    DonchianStrategy, EmaCrossStrategy, IntradayMomentumStrategy,
+    RsiMeanRevStrategy, get_strategy,
 )
 
 
@@ -129,6 +130,61 @@ def test_adx_filter_blocks_entries_in_choppy_market():
 
     assert entries(unfiltered) > 0, "utan filter ska bruset ge entries"
     assert entries(filtered) == 0, "med filter ska trendlöst brus ge noll entries"
+
+
+def build_intraday_scenario(breakout_vol=300.0):
+    """5m-serie: uppgång -> konsolidering under 104.1 -> volymbreakout ->
+    återtest som håller -> återupptagning. Lärobokssetup för intraday_momentum."""
+    n = 400
+    ts = pd.date_range("2024-01-01 00:00", periods=n, freq="5min", tz="UTC")
+    close = np.zeros(n)
+    high = np.zeros(n)
+    low = np.zeros(n)
+    vol = np.full(n, 100.0)
+    for i in range(370):
+        c = 100 + 4 * i / 369
+        close[i], high[i], low[i] = c, c + 0.03, c - 0.03
+    for i in range(370, 380):
+        close[i], high[i], low[i] = 104.0, 104.1, 103.9
+    close[380], high[380], low[380], vol[380] = 104.6, 104.7, 104.0, breakout_vol
+    close[381], high[381], low[381] = 104.3, 104.35, 104.15
+    close[382], high[382], low[382] = 104.5, 104.55, 104.25
+    for i in range(383, n):
+        c = 104.5 + 0.02 * (i - 382)
+        close[i], high[i], low[i] = c, c + 0.03, c - 0.03
+    return pd.DataFrame({"timestamp": ts, "open": close, "high": high,
+                         "low": low, "close": close, "volume": vol})
+
+
+def test_intraday_long_after_breakout_retest():
+    strat = IntradayMomentumStrategy(StrategyConfig())
+    ind = strat.add_indicators(build_intraday_scenario())
+    # breakout-candlen flaggas, men entry kommer först vid återupptagningen
+    assert bool(ind.iloc[380]["bo_up"])
+    assert strat.signal_row(ind, 381).action == "hold"
+    sig = strat.signal_row(ind, 382)
+    assert sig.action == "long"
+    # stop under återtestets botten, take = 2R
+    assert sig.stop_loss == pytest.approx(104.15)
+    assert sig.take_profit == pytest.approx(sig.price + 2 * (sig.price - sig.stop_loss))
+
+
+def test_intraday_requires_volume_spike():
+    strat = IntradayMomentumStrategy(StrategyConfig())
+    ind = strat.add_indicators(build_intraday_scenario(breakout_vol=100.0))
+    entries = sum(strat.signal_row(ind, i).action in ("long", "short")
+                  for i in range(strat.min_candles(), len(ind)))
+    assert entries == 0
+
+
+def test_intraday_exit_on_vwap_loss():
+    strat = IntradayMomentumStrategy(StrategyConfig())
+    df = build_intraday_scenario()
+    # krascha sista candlen långt under VWAP
+    df.loc[df.index[-1], ["close", "low", "high"]] = [100.0, 99.9, 100.1]
+    ind = strat.add_indicators(df)
+    sig = strat.signal_row(ind, len(ind) - 1, side="long")
+    assert sig.action == "close"
 
 
 def test_volatility_filter_blocks_high_atr_entries():

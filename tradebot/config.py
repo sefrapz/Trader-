@@ -43,6 +43,16 @@ class StrategyConfig:
     donchian_exit: int = 10
     meanrev_trend_ema: int = 200
     meanrev_exit_rsi: float = 50.0
+    # intraday_momentum (daytrading: VWAP + struktur + breakout + återtest)
+    structure_ema: int = 20          # EMA på 15m för riktningsstruktur
+    structure_slope_bars: int = 3    # EMA ska stiga/falla över så många 15m-barer
+    breakout_lookback: int = 20      # breakout = stängning utanför N candlars extrem
+    vol_sma: int = 20                # normalvolym = snitt över N candles
+    vol_mult: float = 1.5            # breakoutvolym >= vol_mult * normalvolym
+    retest_window: int = 6           # candles att vänta på återtest + återupptagning
+    retest_tol_pct: float = 0.1      # tolerans runt nivån i %
+    vwap_min_atr_dist: float = 0.25  # minsta avstånd till VWAP i ATR (platt VWAP-skydd)
+    day_rr_take: float = 2.0         # take profit = entry + 2R (R = entry - stop)
 
 
 @dataclass

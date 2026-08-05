@@ -235,10 +235,127 @@ class RsiMeanRevStrategy(BaseStrategy):
         return Signal("hold", price)
 
 
+class IntradayMomentumStrategy(BaseStrategy):
+    """Daytrading: volymbekräftat breakout + återtest, i riktning med
+    dagens VWAP och 15-minutersstrukturen.
+
+    Long kräver att ALLT stämmer:
+      1. pris tydligt över dagens VWAP (minst vwap_min_atr_dist * ATR)
+      2. 15m-struktur uppåt (pris över stigande EMA)
+      3. stängning över senaste breakout_lookback-candlarnas högsta,
+         med volym >= vol_mult * normalvolymen
+      4. återtest av nivån som håller (ingen stängning tydligt under)
+      5. entry när priset vänder upp igen (stängning över föregående high)
+    Stop under återtestets botten (minst ~1 ATR), take profit vid day_rr_take R.
+    Short är spegelvänt. Designad för 5m-candles.
+    """
+
+    name = "intraday_momentum"
+
+    def min_candles(self) -> int:
+        return max(300, self.cfg.breakout_lookback + self.cfg.vol_sma
+                   + self.cfg.retest_window + 5)
+
+    def add_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        out = df.copy()
+        out["atr"] = atr(out, self.cfg.atr_period)
+
+        # dagsförankrad VWAP (nollställs vid UTC-midnatt)
+        day = out["timestamp"].dt.floor("D")
+        tp = (out["high"] + out["low"] + out["close"]) / 3.0
+        pv = (tp * out["volume"]).groupby(day).cumsum()
+        vv = out["volume"].groupby(day).cumsum().replace(0.0, 1e-12)
+        out["vwap"] = pv / vv
+
+        # 15m-riktningsstruktur via resampling
+        idx = out.set_index("timestamp")
+        m15 = idx["close"].resample("15min").last().dropna()
+        e15 = ema(m15, self.cfg.structure_ema)
+        rising = e15 > e15.shift(self.cfg.structure_slope_bars)
+        falling = e15 < e15.shift(self.cfg.structure_slope_bars)
+        up15 = (m15 > e15) & rising
+        down15 = (m15 < e15) & falling
+        out["structure_up"] = (up15.reindex(idx.index, method="ffill")
+                               .fillna(False).astype(bool).to_numpy())
+        out["structure_down"] = (down15.reindex(idx.index, method="ffill")
+                                 .fillna(False).astype(bool).to_numpy())
+
+        # breakout-nivåer och volymspik
+        bl = self.cfg.breakout_lookback
+        out["level_high"] = out["high"].rolling(bl).max().shift(1)
+        out["level_low"] = out["low"].rolling(bl).min().shift(1)
+        norm_vol = out["volume"].rolling(self.cfg.vol_sma).mean().shift(1)
+        out["vol_spike"] = out["volume"] >= self.cfg.vol_mult * norm_vol
+
+        dist = self.cfg.vwap_min_atr_dist * out["atr"]
+        out["bo_up"] = ((out["close"] > out["level_high"]) & out["vol_spike"]
+                        & out["structure_up"] & (out["close"] > out["vwap"] + dist))
+        out["bo_down"] = ((out["close"] < out["level_low"]) & out["vol_spike"]
+                          & out["structure_down"] & (out["close"] < out["vwap"] - dist))
+        return out
+
+    def signal_row(self, ind: pd.DataFrame, i: int, side: str = "") -> Signal:
+        cur = ind.iloc[i]
+        price = float(cur["close"])
+        atr_val = float(cur["atr"])
+        dist = self.cfg.vwap_min_atr_dist * atr_val
+
+        # exits: struktur/VWAP tappad (stop/take sköts av risklagret)
+        if side == "long" and price < float(cur["vwap"]) - dist:
+            return Signal("close", price, reason="tappade VWAP")
+        if side == "short" and price > float(cur["vwap"]) + dist:
+            return Signal("close", price, reason="återtog VWAP")
+        if side:
+            return Signal("hold", price)
+
+        # leta breakout i närtid, kräv återtest som hållit + återupptagning nu
+        earliest = max(1, i - self.cfg.retest_window - 1)
+        prev_high = float(ind["high"].iloc[i - 1])
+        prev_low = float(ind["low"].iloc[i - 1])
+        for j in range(i - 2, earliest - 1, -1):
+            row_j = ind.iloc[j]
+            between = ind.iloc[j + 1:i]  # candlarna mellan breakout och nu
+            if between.empty:
+                continue
+
+            if bool(row_j["bo_up"]):
+                level = float(row_j["level_high"])
+                tol = level * self.cfg.retest_tol_pct / 100.0
+                if (between["close"] < level - tol).any():
+                    continue  # nivån gav vika — setup ogiltig
+                if not (between["low"] <= level + tol).any():
+                    continue  # inget återtest ännu
+                if price > prev_high and price > level:
+                    stop = float(between["low"].min())
+                    if price - stop < 0.3 * atr_val:
+                        stop = price - atr_val
+                    take = price + self.cfg.day_rr_take * (price - stop)
+                    return Signal("long", price, stop, take,
+                                  reason=f"breakout+återtest över {level:.2f}")
+
+            if bool(row_j["bo_down"]):
+                level = float(row_j["level_low"])
+                tol = level * self.cfg.retest_tol_pct / 100.0
+                if (between["close"] > level + tol).any():
+                    continue
+                if not (between["high"] >= level - tol).any():
+                    continue
+                if price < prev_low and price < level:
+                    stop = float(between["high"].max())
+                    if stop - price < 0.3 * atr_val:
+                        stop = price + atr_val
+                    take = price - self.cfg.day_rr_take * (stop - price)
+                    return Signal("short", price, stop, take,
+                                  reason=f"breakout+återtest under {level:.2f}")
+
+        return Signal("hold", price)
+
+
 STRATEGIES = {
     EmaCrossStrategy.name: EmaCrossStrategy,
     DonchianStrategy.name: DonchianStrategy,
     RsiMeanRevStrategy.name: RsiMeanRevStrategy,
+    IntradayMomentumStrategy.name: IntradayMomentumStrategy,
 }
 
 

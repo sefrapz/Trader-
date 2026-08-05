@@ -15,7 +15,8 @@ class Exchange:
     def __init__(self, cfg: ExchangeConfig, live: bool = False):
         self.live = live
         klass = getattr(ccxt, cfg.id)
-        params = {"enableRateLimit": True}
+        # defaultType spot: boten handlar spot, inte derivat/perpetuals
+        params = {"enableRateLimit": True, "options": {"defaultType": "spot"}}
         if live:
             if not cfg.api_key or not cfg.api_secret:
                 raise RuntimeError(
@@ -42,7 +43,19 @@ class Exchange:
         if not self.live:
             log.info("[PAPER] market buy %s %.8f", symbol, amount)
             return {"status": "paper"}
-        order = self.client.create_market_buy_order(symbol, amount)
+        opts = self.client.options
+        requires_price = opts.get("createMarketBuyOrderRequiresPrice")
+        if requires_price is None:
+            requires_price = (opts.get("createOrder") or {}).get(
+                "createMarketBuyOrderRequiresPrice"
+            )
+        if requires_price:
+            # vissa exchanges (t.ex. Bybit classic-konton) tar emot marknadsköp
+            # som kostnad i quote-valuta i stället för mängd basvaluta
+            cost = amount * self.fetch_price(symbol)
+            order = self.client.create_market_buy_order_with_cost(symbol, cost)
+        else:
+            order = self.client.create_market_buy_order(symbol, amount)
         log.info("[LIVE] market buy %s %.8f -> id %s", symbol, amount, order.get("id"))
         return order
 

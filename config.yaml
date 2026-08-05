@@ -2,7 +2,7 @@
 # API-nycklar läggs i .env (se .env.example), aldrig här.
 
 exchange:
-  id: binance          # vilket ccxt-exchange som används
+  id: binance          # vilket ccxt-exchange som används: binance, bybit, kraken ...
   testnet: true        # true = exchangens sandbox/testnet i live-läge
 
 market:

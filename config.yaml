@@ -43,6 +43,11 @@ strategy:
   # tidiga entries — slå bara på om egna mätningar motiverar det)
   adx_period: 14
   adx_min: 0
+  # volatilitetsfilter: hoppa över entries när ATR i % av priset är högre
+  # än detta. 0 = avstängt. Journalanalysen (4 år, 239 trades) visade
+  # PF 1.25 i mellanvol (2-4%) mot PF 0.64 i hög vol (>4%) — A/B-testa
+  # med --max-atr innan du slår på det permanent.
+  max_entry_atr_pct: 0
 
 risk:
   start_equity: 10000        # startkapital i paper-läge (quote-valuta, t.ex. USDT)

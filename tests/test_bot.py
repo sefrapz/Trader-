@@ -131,6 +131,25 @@ def test_adx_filter_blocks_entries_in_choppy_market():
     assert entries(filtered) == 0, "med filter ska trendlöst brus ge noll entries"
 
 
+def test_volatility_filter_blocks_high_atr_entries():
+    # samma data ger long-signal utan filter men inte med strängt filter
+    rng = np.random.default_rng(7)
+    down = np.linspace(104, 100, 50)
+    up = np.linspace(100, 104, 40)
+    closes = np.concatenate([down, up]) + rng.normal(0, 0.15, 90)
+    df = make_ohlcv(closes)
+
+    open_strat = EmaCrossStrategy(StrategyConfig(max_entry_atr_pct=0.0))
+    tight_strat = EmaCrossStrategy(StrategyConfig(max_entry_atr_pct=0.01))
+
+    def entries(strat):
+        return sum(strat.evaluate(df.iloc[:i]).action in ("long", "short")
+                   for i in range(strat.min_candles(), len(df) + 1))
+
+    assert entries(open_strat) > 0
+    assert entries(tight_strat) == 0
+
+
 def test_get_strategy_rejects_unknown_name():
     with pytest.raises(ValueError):
         get_strategy("hemlig_vinnarstrategi", StrategyConfig())

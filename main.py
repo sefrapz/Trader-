@@ -40,6 +40,9 @@ def main() -> int:
                         help="överstyr regimfiltret i backtest (0 = av), för A/B-test")
     parser.add_argument("--trading-mode", choices=["spot", "futures"], default=None,
                         help="överstyr konfigens trading.mode i backtest")
+    parser.add_argument("--max-atr", type=float, default=None,
+                        help="överstyr volatilitetsfiltret i backtest: hoppa över "
+                             "entries med ATR%% av pris över detta (0 = av)")
     parser.add_argument("--i-understand-the-risk", action="store_true",
                         help="krävs för live-läge")
     args = parser.parse_args()
@@ -66,6 +69,8 @@ def main() -> int:
             cfg.market.timeframe = args.timeframe
         if args.adx_min is not None:
             cfg.strategy.adx_min = args.adx_min
+        if args.max_atr is not None:
+            cfg.strategy.max_entry_atr_pct = args.max_atr
         results = Backtester(cfg).run(candle_limit=args.candles,
                                       strategy_name=args.strategy)
         print("\n=== Backtestresultat "

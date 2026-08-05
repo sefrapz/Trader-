@@ -36,6 +36,9 @@ class StrategyConfig:
     adx_min: float = 0.0    # regimfilter för trendstrategier; 0 = avstängt.
                             # A/B-test på donchian 1d 2024-2026 visade att
                             # filtret försämrade resultatet — därav avstängt.
+    max_entry_atr_pct: float = 0.0  # hoppa över entries när ATR% av pris är
+                                    # högre än detta; 0 = avstängt. Journal-
+                                    # analys visade PF 0.64 vid ATR >4%.
     donchian_entry: int = 20
     donchian_exit: int = 10
     meanrev_trend_ema: int = 200

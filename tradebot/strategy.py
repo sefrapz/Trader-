@@ -86,6 +86,13 @@ class BaseStrategy:
             return True
         return float(row["adx"]) >= self.cfg.adx_min
 
+    def _vol_ok(self, row) -> bool:
+        """Volatilitetsfilter: hoppa över entries när ATR% av pris är för hög."""
+        if self.cfg.max_entry_atr_pct <= 0:
+            return True
+        atr_pct = float(row["atr"]) / float(row["close"]) * 100.0
+        return atr_pct <= self.cfg.max_entry_atr_pct
+
 
 class EmaCrossStrategy(BaseStrategy):
     """Trendföljning: EMA-korsning med RSI-filter. Long vid korsning upp,
@@ -118,6 +125,8 @@ class EmaCrossStrategy(BaseStrategy):
                 # korsning i trendlös marknad: lämna ev. short men öppna inget nytt
                 return Signal("close", price,
                               reason=f"korsning upp men svag trend (ADX {cur['adx']:.0f})")
+            if not self._vol_ok(cur):
+                return Signal("close", price, reason="korsning upp men för hög volatilitet")
             if cur["rsi"] < self.cfg.rsi_overbought:
                 stop, take = self._levels(price, float(cur["atr"]), "long")
                 return Signal("long", price, stop, take,
@@ -128,6 +137,8 @@ class EmaCrossStrategy(BaseStrategy):
             if not self._trending(cur):
                 return Signal("close", price,
                               reason=f"korsning ner men svag trend (ADX {cur['adx']:.0f})")
+            if not self._vol_ok(cur):
+                return Signal("close", price, reason="korsning ner men för hög volatilitet")
             if cur["rsi"] > self.cfg.rsi_oversold:
                 stop, take = self._levels(price, float(cur["atr"]), "short")
                 return Signal("short", price, stop, take,
@@ -169,12 +180,12 @@ class DonchianStrategy(BaseStrategy):
         if side == "short" and price > float(cur["dx_high"]):
             return Signal("close", price, reason="stängde över exitkanalen")
 
-        if price > float(cur["dc_high"]) and self._trending(cur):
+        if price > float(cur["dc_high"]) and self._trending(cur) and self._vol_ok(cur):
             stop, take = self._levels(price, float(cur["atr"]), "long")
             return Signal("long", price, stop, take,
                           f"breakout över {self.cfg.donchian_entry}-kanalen, "
                           f"ADX {cur['adx']:.0f}")
-        if price < float(cur["dc_low"]) and self._trending(cur):
+        if price < float(cur["dc_low"]) and self._trending(cur) and self._vol_ok(cur):
             stop, take = self._levels(price, float(cur["atr"]), "short")
             return Signal("short", price, stop, take,
                           f"breakout under {self.cfg.donchian_entry}-kanalen, "
@@ -210,11 +221,13 @@ class RsiMeanRevStrategy(BaseStrategy):
         if side == "short" and rsi_val <= 100 - exit_rsi:
             return Signal("close", price, reason=f"RSI normaliserad ({rsi_val:.1f})")
 
-        if rsi_val < self.cfg.rsi_oversold and price > float(cur["trend_ema"]):
+        if (rsi_val < self.cfg.rsi_oversold and price > float(cur["trend_ema"])
+                and self._vol_ok(cur)):
             stop, take = self._levels(price, float(cur["atr"]), "long")
             return Signal("long", price, stop, take,
                           f"översåld dipp i upptrend, RSI {rsi_val:.1f}")
-        if rsi_val > self.cfg.rsi_overbought and price < float(cur["trend_ema"]):
+        if (rsi_val > self.cfg.rsi_overbought and price < float(cur["trend_ema"])
+                and self._vol_ok(cur)):
             stop, take = self._levels(price, float(cur["atr"]), "short")
             return Signal("short", price, stop, take,
                           f"överköpt topp i nedtrend, RSI {rsi_val:.1f}")

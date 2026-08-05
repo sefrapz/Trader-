@@ -32,6 +32,8 @@ def main() -> int:
     parser.add_argument("--strategy", default=None,
                         help="strategi i backtest: ema_cross, donchian, rsi_meanrev "
                              "eller 'all' för att jämföra samtliga")
+    parser.add_argument("--timeframe", default=None,
+                        help="överstyr konfigens timeframe i backtest, t.ex. 1h, 4h, 1d")
     parser.add_argument("--i-understand-the-risk", action="store_true",
                         help="krävs för live-läge")
     args = parser.parse_args()
@@ -41,6 +43,8 @@ def main() -> int:
     log = logging.getLogger("tradebot")
 
     if args.mode == "backtest":
+        if args.timeframe:
+            cfg.market.timeframe = args.timeframe
         results = Backtester(cfg).run(candle_limit=args.candles,
                                       strategy_name=args.strategy)
         print("\n=== Backtestresultat "

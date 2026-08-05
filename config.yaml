@@ -9,11 +9,12 @@ market:
   symbols:
     - BTC/USDT
     - ETH/USDT
-  timeframe: 4h        # candle-upplösning: 1m, 5m, 15m, 1h, 4h, 1d ...
+  timeframe: 1d        # candle-upplösning: 1m, 5m, 15m, 1h, 4h, 1d ...
+                       # 1d validerat: 1h/4h åt upp resultatet i avgifter/brus
   candle_limit: 300    # antal candles som hämtas per analys
 
 trading:
-  mode: spot           # "spot" = köp/sälj utan hävstång, "futures" = perpetuals
+  mode: futures        # "spot" = köp/sälj utan hävstång, "futures" = perpetuals
   strategy: donchian   # ema_cross | donchian | rsi_meanrev
                        # donchian är default: enda strategin med plusresultat
                        # i 4-årsbacktest på BTC+ETH 1d (aug 2022–aug 2026)
@@ -44,10 +45,10 @@ strategy:
   adx_period: 14
   adx_min: 0
   # volatilitetsfilter: hoppa över entries när ATR i % av priset är högre
-  # än detta. 0 = avstängt. Journalanalysen (4 år, 239 trades) visade
-  # PF 1.25 i mellanvol (2-4%) mot PF 0.64 i hög vol (>4%) — A/B-testa
-  # med --max-atr innan du slår på det permanent.
-  max_entry_atr_pct: 0
+  # än detta. 0 = avstängt. PÅ (4%) sedan 2026-08-05: hypotesen föddes ur
+  # journalanalysen (PF 0.64 vid ATR >4%) och bekräftades i A/B-backtest
+  # på både 4-års- och 2-årsfönstret (se docs/BESLUTSLOGG.md).
+  max_entry_atr_pct: 4
 
 risk:
   start_equity: 10000        # startkapital i paper-läge (quote-valuta, t.ex. USDT)
@@ -57,6 +58,6 @@ risk:
   min_order_quote: 10        # minsta ordervärde i quote-valuta
 
 bot:
-  poll_seconds: 60           # hur ofta boten kollar marknaden
+  poll_seconds: 900          # hur ofta boten kollar marknaden (15 min räcker på 1d-candles)
   state_file: state/portfolio.json
   log_file: tradebot.log

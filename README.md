@@ -99,6 +99,12 @@ trading:
 Hävstång över 10 vägrar boten starta med — se
 [docs/STRATEGIER.md](docs/STRATEGIER.md) för varför.
 
+## Montrose-koppling
+
+Vill du att Claude ska kunna läsa din Montrose-portfölj vid sidan av boten,
+se [docs/MONTROSE.md](docs/MONTROSE.md). `.mcp.json` i repo-roten är förberedd
+och läser kopplingslänken från `MONTROSE_MCP_URL` i `.env`.
+
 ## Arkitektur
 
 | Fil | Ansvar |

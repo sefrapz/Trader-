@@ -24,15 +24,27 @@ integration mellan dem är alltså *analys in* — inte *ordrar ut*.
 
 ---
 
-## 1. Claude.ai (webb, desktop, mobil)
+## 1. Claude.ai — måste göras i webbläsare, inte i mobilappen
 
-1. Öppna **Settings → Connectors → Add custom connector**.
-2. Klistra in din personliga kopplingslänk från Montrose-appen.
-3. Godkänn inloggningen i webbläsarfönstret som öppnas.
-4. Slå på connectorn i den chatt du vill använda den i (kontrollen för
-   connectors i chattfönstret).
+> 🚫 **Mobilappen kan inte lägga till custom connectors.** Knappen finns inte
+> där. Lägg till den på claude.ai i en webbläsare (eller Claude Desktop) — sedan
+> blir connectorn tillgänglig även på mobilen.
 
-Detta är vägen som gäller för vanliga Claude-chattar.
+1. Öppna <https://claude.ai/settings/connectors> i en webbläsare, helst på dator.
+2. Klicka **Add custom connector**.
+3. Klistra in din personliga kopplingslänk från Montrose-appen.
+4. Godkänn inloggningen i fönstret som öppnas.
+5. Slå på connectorn i den chatt du vill använda den i (connector-kontrollen i
+   chattfönstret).
+
+Två begränsningar som kan blockera steg 2:
+
+- **Free-plan** tillåter bara **en** custom connector totalt.
+- **Team/Enterprise:** endast kontots **Owner** kan lägga till custom
+  connectors; medlemmar kan sedan aktivera dem.
+
+Claude ansluter till Montrose från Anthropics moln, inte från din enhet — så
+servern måste vara nåbar från publikt internet (vilket `mcp.montrose.io` är).
 
 ## 2. Claude Code lokalt i terminalen
 

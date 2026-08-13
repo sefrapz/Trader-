@@ -30,15 +30,27 @@ den vanliga adressen; ber klienten om en personlig URL hämtar du den i appen.
 | Läsa innehav och portföljfördelning | Handel utan ditt godkännande |
 | Se exponering per bransch och region | Automatisk exekvering av strategier |
 | Nyheter kopplade till dina innehav | Flytta pengar |
-| **Förbereda köporder** för manuellt godkännande | Koppling till botens krypto-affärer |
+| **Förbereda köporder** för manuellt godkännande | Handla åt dig automatiskt |
 
 Montrose MCP kan **initiera** köp: du ber om att köpa ett innehav för tillgänglig
 kassa, agenten förbereder ordern och skickar tillbaka en länk till Montrose —
 där du loggar in och godkänner själv. Sista steget är alltid manuellt. Det är
 alltså inte en trading-bot eller automatiserad förvaltning.
 
-Boten i det här repot (`main.py`, `tradebot/`) handlar krypto via ccxt och är en
-helt separat sak — Montrose rör aktier och fonder i din depå.
+## Tillgängliga verktyg
+
+| Verktyg | Gör |
+| --- | --- |
+| `get_user_accounts` | listar dina konton och deras id:n |
+| `get_holdings` | innehav, värde, kassa och orealiserat resultat per konto |
+| `search_instruments` | slår upp ticker eller namn till ett orderbook-id |
+| `create_trade_ticket` | förbereder en order och returnerar en länk till appen |
+| `get_watchlists` / `get_watchlist` | dina bevakningslistor |
+| `create_watchlist` | skapar en ny bevakningslista |
+| `add_to_watchlist` / `remove_from_watchlist` | ändrar innehållet i en lista |
+
+Börja alltid med `get_user_accounts` — konto-id:t behövs för både innehav och
+orderlappar.
 
 ---
 
@@ -95,4 +107,4 @@ i moln-sessioner också.
 En "money making machine" byggs inte av kopplingen i sig. Vad kopplingen ger är
 att analysen slipper handmatning: portföljen finns redan i kontexten när du
 frågar, och en order kan förberedas åt dig. Men beslutet och godkännandet ligger
-kvar hos dig — och som README:n säger, ingen bot kan garantera vinst.
+kvar hos dig, och ingen analys kan garantera avkastning.

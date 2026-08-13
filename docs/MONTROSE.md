@@ -10,17 +10,35 @@ mot branscher och nyheter som rör dina positioner.
 
 ---
 
+## Kopplingslänken
+
+Du aktiverar MCP-kopplingen själv inne i Montrose-appen (sidan **Montrose MCP**,
+ovanför avsnittet "Guider"). Först då finns länken.
+
+- Accessen gäller **90 dagar** och kan sedan förnyas eller avslutas.
+- Kopplingen är frivillig och kan stängas av dig när som helst.
+- Claude ansluter från Anthropics moln, inte från din enhet.
+
+Guiden i appen visar en URL utan personlig del (`https://mcp.montrose.io`), vilket
+tyder på att inloggningen sker via OAuth efter att adressen lagts till. Börja med
+den vanliga adressen; ber klienten om en personlig URL hämtar du den i appen.
+
 ## Vad kopplingen ger — och inte ger
 
 | Ger | Ger inte |
 | --- | --- |
-| Läsa innehav och portföljfördelning | Lägga ordrar / handla |
-| Se exponering per bransch och region | Flytta pengar |
-| Nyheter kopplade till dina innehav | Automatisk exekvering av strategier |
+| Läsa innehav och portföljfördelning | Handel utan ditt godkännande |
+| Se exponering per bransch och region | Automatisk exekvering av strategier |
+| Nyheter kopplade till dina innehav | Flytta pengar |
+| **Förbereda köporder** för manuellt godkännande | Koppling till botens krypto-affärer |
 
-Montrose MCP är i praktiken ett **läsande analyslager**. Boten i det här repot
-(`main.py`, `tradebot/`) handlar krypto via ccxt och är helt separat. En
-integration mellan dem är alltså *analys in* — inte *ordrar ut*.
+Montrose MCP kan **initiera** köp: du ber om att köpa ett innehav för tillgänglig
+kassa, agenten förbereder ordern och skickar tillbaka en länk till Montrose —
+där du loggar in och godkänner själv. Sista steget är alltid manuellt. Det är
+alltså inte en trading-bot eller automatiserad förvaltning.
+
+Boten i det här repot (`main.py`, `tradebot/`) handlar krypto via ccxt och är en
+helt separat sak — Montrose rör aktier och fonder i din depå.
 
 ---
 
@@ -95,5 +113,5 @@ curl -sS "$HTTPS_PROXY/__agentproxy/status" | grep -A5 recentRelayFailures
 
 En "money making machine" byggs inte av kopplingen i sig. Vad kopplingen ger är
 att analysen slipper handmatning: portföljen finns redan i kontexten när du
-frågar. Beslut, riskgränser och exekvering ligger fortfarande hos dig och hos
-botens konfiguration — och som README:n säger, ingen bot kan garantera vinst.
+frågar, och en order kan förberedas åt dig. Men beslutet och godkännandet ligger
+kvar hos dig — och som README:n säger, ingen bot kan garantera vinst.

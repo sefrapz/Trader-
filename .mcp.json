@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "montrose": {
-      "type": "http",
-      "url": "${MONTROSE_MCP_URL:-https://mcp.montrose.io/}"
-    }
-  }
-}

@@ -102,8 +102,8 @@ Hävstång över 10 vägrar boten starta med — se
 ## Montrose-koppling
 
 Vill du att Claude ska kunna läsa din Montrose-portfölj vid sidan av boten,
-se [docs/MONTROSE.md](docs/MONTROSE.md). `.mcp.json` i repo-roten är förberedd
-och läser kopplingslänken från `MONTROSE_MCP_URL` i `.env`.
+se [docs/MONTROSE.md](docs/MONTROSE.md). Kopplingen läggs till som connector i
+din Claude-klient — inget behöver konfigureras i repot.
 
 ## Arkitektur
 

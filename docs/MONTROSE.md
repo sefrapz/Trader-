@@ -73,39 +73,20 @@ claude mcp add --transport http montrose-mcp https://mcp.montrose.io/
 Starta sedan `claude` och kör `/mcp` för att autentisera. Efter det syns
 Montrose-verktygen i sessionen.
 
-Vill du ha kopplingen bunden till det här projektet i stället för globalt, finns
-`.mcp.json` i repo-roten redan förberedd. Den läser URL:en från miljövariabeln
-`MONTROSE_MCP_URL`, så den personliga länken hamnar aldrig i git:
-
-```bash
-# i .env (gitignorerad)
-MONTROSE_MCP_URL=https://mcp.montrose.io/<din-personliga-del>
-```
-
-Claude Code frågar om godkännande första gången ett projekt-`.mcp.json` läses in.
+Det här repot har medvetet **ingen** `.mcp.json` — kopplingen hör hemma i din
+klient, inte i projektet, och en projektfil skulle bara ge en dubblett av
+connectorn ovan.
 
 ## 3. Claude Code på webben (moln-sessioner)
 
-Fungerar **inte** direkt, av två skäl:
+Fungerar — via connectorn i steg 1, inte via projektkonfiguration. Anledningen är
+att Claude ansluter till Montrose **från Anthropics moln**, inte från
+moln-containern. Containern själv når inte `mcp.montrose.io`; nätverkspolicyn
+avvisar värden med `403`. Det spelar ingen roll, eftersom containern inte är den
+som kopplar upp sig.
 
-1. **MCP-servrar laddas vid sessionsstart.** En pågående session kan inte koppla
-   in en ny server mitt i — konfigurationen måste finnas innan sessionen startar.
-2. **Nätverkspolicyn blockerar värden.** Moln-containern går ut via en
-   agent-proxy som avvisar `mcp.montrose.io:443` med `403` (policy denial).
-
-För att få det att fungera i moln-sessioner:
-
-- Lägg till `mcp.montrose.io` i miljöns nätverkspolicy (den som valdes när
-  environment skapades) — se
-  <https://code.claude.com/docs/en/claude-code-on-the-web>.
-- Sätt `MONTROSE_MCP_URL` som environment-variabel på miljön, så plockar
-  `.mcp.json` upp den vid nästa sessionsstart.
-
-Verifiera att policyn släpper igenom värden:
-
-```bash
-curl -sS "$HTTPS_PROXY/__agentproxy/status" | grep -A5 recentRelayFailures
-```
+Praktiskt: aktivera connectorn en gång på claude.ai, så finns Montrose-verktygen
+i moln-sessioner också.
 
 ---
 
